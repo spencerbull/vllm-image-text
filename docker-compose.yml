@@ -33,10 +33,10 @@ services:
               capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://0.0.0.0:8000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 300s
 
   app:
     build: ./app
