@@ -32,6 +32,94 @@ curl -X POST http://localhost:8080/extract-text \
   -F "file=@screenshot.png"
 ```
 
+## Usage Examples
+
+### Single image (file on disk)
+
+```bash
+# Extract text from a local screenshot
+curl -s -X POST http://localhost:8080/extract-text \
+  -F "file=@/path/to/screenshot.png" | jq
+
+# Response:
+# {
+#   "text": [
+#     "Welcome to the Dashboard",
+#     "Total Users: 1,234",
+#     "Revenue: $56,789"
+#   ]
+# }
+```
+
+### With a custom prompt
+
+```bash
+# Ask for specific extraction (e.g., only numbers)
+curl -s -X POST http://localhost:8080/extract-text \
+  -F "file=@invoice.jpg" \
+  -G --data-urlencode "prompt=Extract only dollar amounts from this image. Return one per line." | jq
+
+# Response:
+# {
+#   "text": ["$1,250.00", "$89.99", "$1,339.99"]
+# }
+```
+
+### Batch — multiple images at once
+
+```bash
+# Process several images concurrently
+curl -s -X POST http://localhost:8080/extract-text/batch \
+  -F "files=@page1.png" \
+  -F "files=@page2.png" \
+  -F "files=@page3.png" | jq
+
+# Response:
+# {
+#   "results": [
+#     {"file": "page1.png", "text": ["Header text", "Body text..."], "error": null},
+#     {"file": "page2.png", "text": ["More text here"], "error": null},
+#     {"file": "page3.png", "text": ["Final page content"], "error": null}
+#   ]
+# }
+```
+
+### From a script — process all images in a directory
+
+```bash
+# Extract text from every PNG in a folder
+for img in ./documents/*.png; do
+  echo "=== $(basename $img) ==="
+  curl -s -X POST http://localhost:8080/extract-text \
+    -F "file=@${img}" | jq -r '.text[]'
+  echo
+done
+```
+
+### Python requests example
+
+```python
+import requests
+
+# Single image
+with open("receipt.jpg", "rb") as f:
+    resp = requests.post(
+        "http://localhost:8080/extract-text",
+        files={"file": ("receipt.jpg", f, "image/jpeg")},
+    )
+lines = resp.json()["text"]
+print(lines)  # ["Store: Walmart", "Date: 02/17/2026", "Total: $42.50"]
+```
+
+### Health check
+
+```bash
+curl -s http://localhost:8080/health | jq
+# {"status": "ok", "model": "google/gemma-3-27b-it", "vllm_base_url": "http://vllm:8000/v1"}
+```
+
+---
+
 ## API
 
 ### `POST /extract-text`
