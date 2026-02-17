@@ -16,6 +16,7 @@ class VLLMClientConfig:
 
     base_url: str
     model_name: str
+    image_part_type: str
     max_tokens: int
     temperature: float
     request_timeout_s: float
@@ -34,6 +35,17 @@ class VLLMClientError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.response_text = response_text
+
+    def __str__(self) -> str:
+        base = super().__str__().strip() or "vLLM client error"
+        details = []
+        if self.status_code is not None:
+            details.append(f"status={self.status_code}")
+        if self.response_text:
+            details.append(f"response={self.response_text}")
+        if details:
+            return f"{base} ({', '.join(details)})"
+        return base
 
 
 class VLLMClient:
@@ -74,18 +86,23 @@ class VLLMClient:
 
     def _build_payload(self, image_data_uri: str, prompt: str) -> dict[str, Any]:
         """Construct the OpenAI-compatible payload for vLLM."""
+        image_part_type = self._config.image_part_type
+        if image_part_type == "input_image":
+            image_part = {"type": "input_image", "image_url": {"url": image_data_uri}}
+        else:
+            image_part = {"type": "image_url", "image_url": {"url": image_data_uri}}
         return {
             "model": self._config.model_name,
             "messages": [
                 {
                     "role": "user",
                     "content": [
-                        {"type": "image_url", "image_url": {"url": image_data_uri}},
                         {"type": "text", "text": prompt},
+                        image_part,
                     ],
                 }
             ],
-            "max_tokens": self._config.max_tokens,
+            "max_completion_tokens": self._config.max_tokens,
             "temperature": self._config.temperature,
         }
 
@@ -145,7 +162,11 @@ class VLLMClient:
             content = data["choices"][0]["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             self._logger.error("Unexpected vLLM response shape: %s", response.text[:500])
-            raise VLLMClientError("Unexpected vLLM response shape") from exc
+            raise VLLMClientError(
+                "Unexpected vLLM response shape",
+                status_code=response.status_code,
+                response_text=response.text,
+            ) from exc
 
         text = str(content).strip()
         self._logger.info(

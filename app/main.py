@@ -42,6 +42,7 @@ image_config = ImageValidationConfig(
 vllm_config = VLLMClientConfig(
     base_url=config.vllm_base_url,
     model_name=config.model_name,
+    image_part_type=config.image_part_type,
     max_tokens=config.max_tokens,
     temperature=config.temperature,
     request_timeout_s=config.request_timeout_s,

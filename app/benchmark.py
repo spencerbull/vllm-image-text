@@ -34,12 +34,16 @@ DEFAULT_RUNS = 3  # runs per concurrency level (for stable averages)
 
 # ─── GPU & vLLM info ────────────────────────────────────────────────────────
 
+
 async def get_gpu_info() -> str:
     """Detect GPU name via nvidia-smi. Returns string like 'NVIDIA RTX Pro 6000'."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            "nvidia-smi",
+            "--query-gpu=name,memory.total",
+            "--format=csv,noheader,nounits",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await proc.communicate()
         if proc.returncode == 0 and stdout:
@@ -74,6 +78,7 @@ async def get_vllm_model_info(vllm_url: str) -> dict:
 
 # ─── Generate a test image if none provided ─────────────────────────────────
 
+
 def generate_test_image(path: str = "/tmp/bench_test.png") -> str:
     """Create a simple test image with text for benchmarking."""
     try:
@@ -97,6 +102,7 @@ def generate_test_image(path: str = "/tmp/bench_test.png") -> str:
 
 
 # ─── Single request ─────────────────────────────────────────────────────────
+
 
 async def send_request(
     client: httpx.AsyncClient,
@@ -172,12 +178,12 @@ async def send_request_streaming(
             {
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": image_b64_uri}},
                     {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": image_b64_uri}},
                 ],
             }
         ],
-        "max_tokens": 4096,
+        "max_completion_tokens": 4096,
         "temperature": 0.0,
         "stream": True,
         "stream_options": {"include_usage": True},
@@ -249,10 +255,10 @@ async def send_request_streaming(
     return {
         "status": 200,
         "latency_ms": total_ms,
-        "ttft_ms": ttft_ms,           # prefill time (time to first token)
-        "decode_ms": decode_ms,        # total decode time
-        "itl_ms": itl_ms,             # inter-token latency
-        "decode_tps": decode_tps,      # decode tokens/sec
+        "ttft_ms": ttft_ms,  # prefill time (time to first token)
+        "decode_ms": decode_ms,  # total decode time
+        "itl_ms": itl_ms,  # inter-token latency
+        "decode_tps": decode_tps,  # decode tokens/sec
         "num_chunks": len(token_times),
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
@@ -262,6 +268,7 @@ async def send_request_streaming(
 
 
 # ─── Run one concurrency level ──────────────────────────────────────────────
+
 
 async def run_level(
     url: str,
@@ -280,10 +287,7 @@ async def run_level(
 
     async with httpx.AsyncClient() as client:
         wall_start = time.perf_counter()
-        tasks = [
-            send_request(client, url, image_path)
-            for _ in range(num_requests)
-        ]
+        tasks = [send_request(client, url, image_path) for _ in range(num_requests)]
         results = await asyncio.gather(*tasks)
         wall_elapsed = (time.perf_counter() - wall_start) * 1000  # ms
 
@@ -323,7 +327,9 @@ async def run_level(
         "p99_ms": latencies[p99_idx],
         "throughput_rps": (len(latencies) / wall_elapsed) * 1000,
         "tokens_per_sec": (total_tokens / wall_elapsed) * 1000 if total_tokens else 0,
-        "completion_tok_per_sec": (completion_tokens / wall_elapsed) * 1000 if completion_tokens else 0,
+        "completion_tok_per_sec": (completion_tokens / wall_elapsed) * 1000
+        if completion_tokens
+        else 0,
         "total_tokens": total_tokens,
         "success": len(latencies),
         "errors": len(errors),
@@ -331,6 +337,7 @@ async def run_level(
 
 
 # ─── Pretty table printer ───────────────────────────────────────────────────
+
 
 def print_results(all_results: list[dict], gpu_name: str = "", model_name: str = "") -> None:
     """Print benchmark results in a clean formatted table."""
@@ -370,6 +377,7 @@ def print_results(all_results: list[dict], gpu_name: str = "", model_name: str =
 
 # ─── Prefill/Decode benchmark ────────────────────────────────────────────────
 
+
 async def run_prefill_decode_level(
     vllm_url: str,
     image_b64_uri: str,
@@ -396,10 +404,16 @@ async def run_prefill_decode_level(
     if not successes:
         return {
             "concurrency": concurrency,
-            "avg_ttft_ms": 0, "avg_itl_ms": 0, "avg_decode_tps": 0,
-            "total_prompt_tok": 0, "total_completion_tok": 0,
-            "prefill_tok_per_sec": 0, "decode_tok_per_sec": 0,
-            "wall_ms": wall_ms, "success": 0, "errors": errors,
+            "avg_ttft_ms": 0,
+            "avg_itl_ms": 0,
+            "avg_decode_tps": 0,
+            "total_prompt_tok": 0,
+            "total_completion_tok": 0,
+            "prefill_tok_per_sec": 0,
+            "decode_tok_per_sec": 0,
+            "wall_ms": wall_ms,
+            "success": 0,
+            "errors": errors,
         }
 
     avg_ttft = statistics.mean(r["ttft_ms"] for r in successes)
@@ -470,6 +484,7 @@ def print_prefill_decode_results(
 
 # ─── Chart generation ────────────────────────────────────────────────────────
 
+
 def save_charts(all_results: list[dict], output_dir: str = ".") -> list[str]:
     """
     Generate and save benchmark charts as PNG files.
@@ -483,6 +498,7 @@ def save_charts(all_results: list[dict], output_dir: str = ".") -> list[str]:
     """
     try:
         import matplotlib
+
         matplotlib.use("Agg")  # Non-interactive backend
         import matplotlib.pyplot as plt
     except ImportError:
@@ -521,16 +537,26 @@ def save_charts(all_results: list[dict], output_dir: str = ".") -> list[str]:
     p95 = [r["p95_ms"] for r in all_results]
     p99 = [r["p99_ms"] for r in all_results]
 
-    ax.bar([i - 1.5 * width for i in x], avg, width, label="Avg", color="#4C9AFF", edgecolor="#2B6CB0")
-    ax.bar([i - 0.5 * width for i in x], p50, width, label="P50", color="#48BB78", edgecolor="#276749")
-    ax.bar([i + 0.5 * width for i in x], p95, width, label="P95", color="#ECC94B", edgecolor="#975A16")
-    ax.bar([i + 1.5 * width for i in x], p99, width, label="P99", color="#FC8181", edgecolor="#C53030")
+    ax.bar(
+        [i - 1.5 * width for i in x], avg, width, label="Avg", color="#4C9AFF", edgecolor="#2B6CB0"
+    )
+    ax.bar(
+        [i - 0.5 * width for i in x], p50, width, label="P50", color="#48BB78", edgecolor="#276749"
+    )
+    ax.bar(
+        [i + 0.5 * width for i in x], p95, width, label="P95", color="#ECC94B", edgecolor="#975A16"
+    )
+    ax.bar(
+        [i + 1.5 * width for i in x], p99, width, label="P99", color="#FC8181", edgecolor="#C53030"
+    )
 
     ax.set_xticks(list(x))
     ax.set_xticklabels([str(l) for l in levels])
     ax.set_xlabel("Concurrency Level", fontsize=12)
     ax.set_ylabel("Latency (ms)", fontsize=12)
-    ax.set_title("vLLM Image-to-Text — Latency Distribution vs Concurrency", fontsize=14, fontweight="bold")
+    ax.set_title(
+        "vLLM Image-to-Text — Latency Distribution vs Concurrency", fontsize=14, fontweight="bold"
+    )
     ax.legend(fontsize=10)
     ax.grid(axis="y", alpha=0.3)
     fig.tight_layout()
@@ -546,13 +572,29 @@ def save_charts(all_results: list[dict], output_dir: str = ".") -> list[str]:
     gen_tps = [r["completion_tok_per_sec"] for r in all_results]
     x = range(len(levels))
     width = 0.35
-    ax.bar([i - width / 2 for i in x], tps, width, label="Total tok/s", color="#4C9AFF", edgecolor="#2B6CB0")
-    ax.bar([i + width / 2 for i in x], gen_tps, width, label="Generation tok/s", color="#48BB78", edgecolor="#276749")
+    ax.bar(
+        [i - width / 2 for i in x],
+        tps,
+        width,
+        label="Total tok/s",
+        color="#4C9AFF",
+        edgecolor="#2B6CB0",
+    )
+    ax.bar(
+        [i + width / 2 for i in x],
+        gen_tps,
+        width,
+        label="Generation tok/s",
+        color="#48BB78",
+        edgecolor="#276749",
+    )
     ax.set_xticks(list(x))
     ax.set_xticklabels([str(l) for l in levels])
     ax.set_xlabel("Concurrency Level", fontsize=12)
     ax.set_ylabel("Tokens per Second", fontsize=12)
-    ax.set_title("vLLM Image-to-Text — Token Throughput vs Concurrency", fontsize=14, fontweight="bold")
+    ax.set_title(
+        "vLLM Image-to-Text — Token Throughput vs Concurrency", fontsize=14, fontweight="bold"
+    )
     ax.legend(fontsize=10)
     ax.grid(axis="y", alpha=0.3)
     fig.tight_layout()
@@ -569,6 +611,7 @@ def save_prefill_decode_charts(all_results: list[dict], output_dir: str = ".") -
     """Generate prefill/decode specific charts."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
@@ -618,8 +661,22 @@ def save_prefill_decode_charts(all_results: list[dict], output_dir: str = ".") -
     prefill_tps = [r["prefill_tok_per_sec"] for r in all_results]
     decode_tps = [r["decode_tok_per_sec"] for r in all_results]
 
-    ax.bar([i - width / 2 for i in x], prefill_tps, width, label="Prefill tok/s", color="#FC8181", edgecolor="#C53030")
-    ax.bar([i + width / 2 for i in x], decode_tps, width, label="Decode tok/s", color="#4C9AFF", edgecolor="#2B6CB0")
+    ax.bar(
+        [i - width / 2 for i in x],
+        prefill_tps,
+        width,
+        label="Prefill tok/s",
+        color="#FC8181",
+        edgecolor="#C53030",
+    )
+    ax.bar(
+        [i + width / 2 for i in x],
+        decode_tps,
+        width,
+        label="Decode tok/s",
+        color="#4C9AFF",
+        edgecolor="#2B6CB0",
+    )
     ax.set_xticks(list(x))
     ax.set_xticklabels([str(l) for l in levels])
     ax.set_xlabel("Concurrency Level", fontsize=12)
@@ -639,37 +696,34 @@ def save_prefill_decode_charts(all_results: list[dict], output_dir: str = ".") -
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 
+
 async def main():
     parser = argparse.ArgumentParser(
         description="Benchmark vLLM image-to-text concurrency throughput"
     )
+    parser.add_argument("--url", default=DEFAULT_URL, help=f"API base URL (default: {DEFAULT_URL})")
     parser.add_argument(
-        "--url", default=DEFAULT_URL,
-        help=f"API base URL (default: {DEFAULT_URL})"
+        "--image", default=None, help="Path to test image (auto-generated if not provided)"
     )
     parser.add_argument(
-        "--image", default=None,
-        help="Path to test image (auto-generated if not provided)"
+        "--levels",
+        default=",".join(str(l) for l in DEFAULT_LEVELS),
+        help=f"Comma-separated concurrency levels (default: {','.join(str(l) for l in DEFAULT_LEVELS)})",
     )
     parser.add_argument(
-        "--levels", default=",".join(str(l) for l in DEFAULT_LEVELS),
-        help=f"Comma-separated concurrency levels (default: {','.join(str(l) for l in DEFAULT_LEVELS)})"
+        "--runs",
+        type=int,
+        default=DEFAULT_RUNS,
+        help=f"Runs per level, results averaged (default: {DEFAULT_RUNS})",
     )
     parser.add_argument(
-        "--runs", type=int, default=DEFAULT_RUNS,
-        help=f"Runs per level, results averaged (default: {DEFAULT_RUNS})"
+        "--charts", default=".", help="Directory to save chart PNGs (default: current dir)"
     )
+    parser.add_argument("--no-charts", action="store_true", help="Skip chart generation")
     parser.add_argument(
-        "--charts", default=".",
-        help="Directory to save chart PNGs (default: current dir)"
-    )
-    parser.add_argument(
-        "--no-charts", action="store_true",
-        help="Skip chart generation"
-    )
-    parser.add_argument(
-        "--vllm-url", default=DEFAULT_VLLM_URL,
-        help=f"vLLM direct URL for model info (default: {DEFAULT_VLLM_URL})"
+        "--vllm-url",
+        default=DEFAULT_VLLM_URL,
+        help=f"vLLM direct URL for model info (default: {DEFAULT_VLLM_URL})",
     )
     args = parser.parse_args()
 
@@ -709,7 +763,9 @@ async def main():
     for level in levels:
         level_runs = []
         for run_idx in range(args.runs):
-            print(f"  Concurrency {level:>3} — run {run_idx + 1}/{args.runs} ...", end="", flush=True)
+            print(
+                f"  Concurrency {level:>3} — run {run_idx + 1}/{args.runs} ...", end="", flush=True
+            )
             result = await run_level(args.url, image_path, level)
             level_runs.append(result)
             print(f" {result['throughput_rps']:.2f} rps")
@@ -724,7 +780,9 @@ async def main():
             "p99_ms": statistics.mean(r["p99_ms"] for r in level_runs),
             "throughput_rps": statistics.mean(r["throughput_rps"] for r in level_runs),
             "tokens_per_sec": statistics.mean(r["tokens_per_sec"] for r in level_runs),
-            "completion_tok_per_sec": statistics.mean(r["completion_tok_per_sec"] for r in level_runs),
+            "completion_tok_per_sec": statistics.mean(
+                r["completion_tok_per_sec"] for r in level_runs
+            ),
             "total_tokens": sum(r["total_tokens"] for r in level_runs),
             "success": sum(r["success"] for r in level_runs),
             "errors": sum(r["errors"] for r in level_runs),
@@ -740,6 +798,7 @@ async def main():
 
     # Prepare base64 image for direct vLLM calls
     import base64 as b64mod
+
     with open(image_path, "rb") as f:
         img_bytes = f.read()
     img_b64 = b64mod.b64encode(img_bytes).decode()
@@ -749,12 +808,16 @@ async def main():
     for level in levels:
         pd_level_runs = []
         for run_idx in range(args.runs):
-            print(f"  Concurrency {level:>3} — run {run_idx + 1}/{args.runs} ...", end="", flush=True)
+            print(
+                f"  Concurrency {level:>3} — run {run_idx + 1}/{args.runs} ...", end="", flush=True
+            )
             result = await run_prefill_decode_level(
                 args.vllm_url, img_uri, model_info["model"], level
             )
             pd_level_runs.append(result)
-            print(f" TTFT={result['avg_ttft_ms']:.0f}ms, decode={result['decode_tok_per_sec']:.1f} t/s")
+            print(
+                f" TTFT={result['avg_ttft_ms']:.0f}ms, decode={result['decode_tok_per_sec']:.1f} t/s"
+            )
 
         avg_pd = {
             "concurrency": level,

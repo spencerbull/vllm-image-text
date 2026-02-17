@@ -14,6 +14,7 @@ def client_config() -> VLLMClientConfig:
     return VLLMClientConfig(
         base_url="http://fake-vllm:8000/v1",
         model_name="google/gemma-3-27b-it",
+        image_part_type="image_url",
         max_tokens=4096,
         temperature=0.0,
         request_timeout_s=30.0,
@@ -147,11 +148,11 @@ class TestVLLMClient:
         assert route.called
         payload = json.loads(route.calls[0].request.content)
         assert payload["model"] == "google/gemma-3-27b-it"
-        assert payload["max_tokens"] == 4096
+        assert payload["max_completion_tokens"] == 4096
         assert payload["temperature"] == 0.0
         assert len(payload["messages"]) == 1
         content = payload["messages"][0]["content"]
-        assert content[0]["type"] == "image_url"
-        assert content[0]["image_url"]["url"] == sample_image_uri
-        assert content[1]["type"] == "text"
-        assert content[1]["text"] == "My prompt"
+        assert content[0]["type"] == "text"
+        assert content[0]["text"] == "My prompt"
+        assert content[1]["type"] == "image_url"
+        assert content[1]["image_url"]["url"] == sample_image_uri

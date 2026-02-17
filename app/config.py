@@ -51,6 +51,7 @@ class AppConfig:
 
     vllm_base_url: str
     model_name: str
+    image_part_type: str
     max_concurrent: int
     max_image_bytes: int
     max_image_pixels: int
@@ -64,15 +65,17 @@ class AppConfig:
 
 def load_config() -> AppConfig:
     """Load application configuration from environment variables."""
+    image_part_type = _get_env("VLLM_IMAGE_PART_TYPE", "image_url").strip().lower()
+    if image_part_type not in {"image_url", "input_image"}:
+        raise RuntimeError("Invalid VLLM_IMAGE_PART_TYPE. Expected 'image_url' or 'input_image'.")
     return AppConfig(
         vllm_base_url=_get_env("VLLM_BASE_URL", "http://localhost:8000/v1"),
         model_name=_get_env("MODEL_NAME", "google/gemma-3-27b-it"),
+        image_part_type=image_part_type,
         max_concurrent=_get_int("MAX_CONCURRENT", 8),
         max_image_bytes=_get_int("MAX_IMAGE_BYTES", 10 * 1024 * 1024),
         max_image_pixels=_get_int("MAX_IMAGE_PIXELS", 30_000_000),
-        allowed_image_formats=_get_list(
-            "ALLOWED_IMAGE_FORMATS", ["PNG", "JPEG", "WEBP"]
-        ),
+        allowed_image_formats=_get_list("ALLOWED_IMAGE_FORMATS", ["PNG", "JPEG", "WEBP"]),
         request_timeout_s=_get_float("REQUEST_TIMEOUT_S", 120.0),
         max_tokens=_get_int("MAX_TOKENS", 4096),
         temperature=_get_float("TEMPERATURE", 0.0),
