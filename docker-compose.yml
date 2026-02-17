@@ -15,10 +15,10 @@ services:
     ports:
       - "8000:8000"
     command: >
-      vllm serve google/gemma-3-27b-it
+      vllm serve google/gemma-3-12b-it
       --port 8000
       --host 0.0.0.0
-      --gpu-memory-utilization 0.90
+      --gpu-memory-utilization 0.70
       --max-model-len 8192
       --max-num-seqs 16
       --trust-remote-code
@@ -45,7 +45,7 @@ services:
       - "8080:8080"
     environment:
       - VLLM_BASE_URL=http://vllm:8000/v1
-      - MODEL_NAME=google/gemma-3-27b-it
+      - MODEL_NAME=google/gemma-3-12b-it
       - MAX_CONCURRENT=8
       - MAX_IMAGE_BYTES=10485760
       - MAX_IMAGE_PIXELS=30000000
