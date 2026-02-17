@@ -6,13 +6,9 @@ Extract text from images using a Gemma 3 vision model served by vLLM. This repos
 
 ```mermaid
 flowchart LR
-  Client[Client
-  cURL / SDKs] --> API[FastAPI
-  :8080]
-  API -->|OpenAI-compatible| VLLM[vLLM
-  :8000]
-  VLLM --> Model[Gemma 3 Vision
-  (HF Hub)]
+  Client["Client — cURL / SDKs"] --> API["FastAPI :8080"]
+  API -->|OpenAI-compatible| VLLM["vLLM :8000"]
+  VLLM --> Model["Gemma 3 Vision — HF Hub"]
 ```
 
 ## Quick Start
