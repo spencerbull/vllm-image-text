@@ -1,40 +1,46 @@
 services:
   vllm:
     image: nvcr.io/nvidia/vllm:25.12-py3
+    container_name: vllm-ocr
     runtime: nvidia
-    ports:
-      - "8000:8000"
-    volumes:
-      - huggingface-cache:/root/.cache/huggingface
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
-    # vllm-openai image entrypoint is "vllm serve", so just pass model + flags
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
     command: >
-      --model google/gemma-3-27b-it
-      --max-model-len 8192
-      --max-num-seqs 16
-      --gpu-memory-utilization 0.90
-      --tensor-parallel-size 1
-      --trust-remote-code
-      --dtype auto
+      vllm serve google/gemma-3-27b-it
       --port 8000
       --host 0.0.0.0
+      --gpu-memory-utilization 0.90
+      --max-model-len 8192
+      --max-num-seqs 16
+      --trust-remote-code
+      --dtype auto
+      --enable-prefix-caching
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
+      test: ["CMD-SHELL", "curl -f http://0.0.0.0:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   app:
     build: ./app
+    container_name: vllm-ocr-app
     ports:
       - "8080:8080"
     environment:
