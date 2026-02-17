@@ -103,6 +103,14 @@ class VLLMClient:
 
         payload = self._build_payload(image_data_uri, prompt)
 
+        self._logger.debug(
+            "Sending request to %s/chat/completions (model=%s, max_tokens=%d, image_uri_len=%d)",
+            self._config.base_url,
+            self._config.model_name,
+            self._config.max_tokens,
+            len(image_data_uri),
+        )
+
         try:
             # Semaphore prevents too many simultaneous vLLM requests.
             async with self._semaphore:
@@ -111,9 +119,21 @@ class VLLMClient:
                     json=payload,
                 )
         except httpx.RequestError as exc:
+            self._logger.error("vLLM request error: %s", exc)
             raise VLLMClientError(f"vLLM request failed: {exc}") from exc
 
+        self._logger.info(
+            "vLLM response: status=%d, content_length=%s",
+            response.status_code,
+            response.headers.get("content-length", "unknown"),
+        )
+
         if response.status_code != 200:
+            self._logger.error(
+                "vLLM non-200 response: status=%d, body=%s",
+                response.status_code,
+                response.text[:500],
+            )
             raise VLLMClientError(
                 f"vLLM returned {response.status_code}",
                 status_code=response.status_code,
@@ -124,10 +144,17 @@ class VLLMClient:
             data = response.json()
             content = data["choices"][0]["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
-            self._logger.error("Unexpected vLLM response: %s", response.text)
+            self._logger.error("Unexpected vLLM response shape: %s", response.text[:500])
             raise VLLMClientError("Unexpected vLLM response shape") from exc
 
         text = str(content).strip()
+        self._logger.info(
+            "vLLM extracted text (%d chars, %d lines): %s",
+            len(text),
+            text.count("\n") + 1,
+            text[:200] + ("..." if len(text) > 200 else ""),
+        )
+
         # Normalize the response into a stable list of non-empty lines.
         lines = [line.strip() for line in text.split("\n") if line.strip()]
 
