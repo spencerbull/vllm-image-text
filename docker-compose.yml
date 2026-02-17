@@ -8,9 +8,9 @@ services:
       - huggingface-cache:/root/.cache/huggingface
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
-    # vLLM serve: model is positional, then flags for tuning
+    # vllm-openai image entrypoint is "vllm serve", so just pass model + flags
     command: >
-      serve google/gemma-3-27b-it
+      --model google/gemma-3-27b-it
       --max-model-len 8192
       --max-num-seqs 16
       --gpu-memory-utilization 0.90
