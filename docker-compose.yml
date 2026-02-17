@@ -1,8 +1,6 @@
 services:
   vllm:
-    # Use Blackwell/GB10-compatible image (CUDA 13.x)
-    # Standard vllm/vllm-openai:latest is CUDA 12.8 and won't work on GB10
-    image: scitrera/dgx-spark-vllm:0.14.0rc2-t5
+    image: nvcr.io/nvidia/vllm:25.12-py3
     runtime: nvidia
     ports:
       - "8000:8000"
