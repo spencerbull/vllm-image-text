@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    ports:
+      - "8000:8000"
+    volumes:
+      - huggingface-cache:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    command: >
+      # Model selection: must match MODEL_NAME in the API service.
+      --model google/gemma-3-27b-it
+      # Context window: keep high for long documents, but expect higher VRAM usage.
+      --max-model-len 8192
+      # Concurrency: caps parallel sequences to avoid GPU over-commit.
+      --max-num-seqs 16
+      # Memory headroom: leave room for CUDA + KV cache to prevent OOM.
+      --gpu-memory-utilization 0.90
+      # Parallelism: increase when using multiple GPUs for a single model.
+      --tensor-parallel-size 1
+      # Trust remote code only when model repo is vetted.
+      --trust-remote-code
+      # Auto dtype typically selects bf16/fp16 for speed + memory balance.
+      --dtype auto
+      --port 8000
+      --host 0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  app:
+    build: ./app
+    ports:
+      - "8080:8080"
+    environment:
+      - VLLM_BASE_URL=http://vllm:8000/v1
+      - MODEL_NAME=google/gemma-3-27b-it
+      # Concurrency for outbound vLLM calls; match to GPU capacity.
+      - MAX_CONCURRENT=8
+      # Image constraints: adjust to your expected image sizes.
+      - MAX_IMAGE_BYTES=10485760
+      - MAX_IMAGE_PIXELS=30000000
+      # Acceptable formats for OCR intake.
+      - ALLOWED_IMAGE_FORMATS=PNG,JPEG,WEBP
+    depends_on:
+      vllm:
+        condition: service_healthy
+
+volumes:
+  huggingface-cache:
